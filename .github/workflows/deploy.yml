@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -24,36 +25,46 @@ jobs:
 
       - name: Extract PWA
         run: |
-          unzip -o "kiem-ke-hang-hoa-PWA-offline-scan-v2.zip" -d extracted
-          cp -r extracted/pwa-build/. .
+          mkdir -p app
+          unzip -o "kiem-ke-hang-hoa-PWA-offline-scan-v2.zip" -d app
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-  
+      - name: Find project
+        run: |
+          PACKAGE=$(find app -name package.json -type f | head -n 1)
 
-      - name: Install dependencies
-        run: npm install
+          if [ -z "$PACKAGE" ]; then
+            echo "Khong tim thay package.json"
+            find app -maxdepth 4 -type f
+            exit 1
+          fi
 
-      - name: Build
-        run: npm run build
+          APP_DIR=$(dirname "$PACKAGE")
+
+          echo "Project: $APP_DIR"
+
+          cd "$APP_DIR"
+
+          npm install
+          npm run build
+
+          rm -rf "$GITHUB_WORKSPACE/dist"
+          cp -r dist "$GITHUB_WORKSPACE/dist"
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
 
   deploy:
+    runs-on: ubuntu-latest
+    needs: build
+
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-
-    runs-on: ubuntu-latest
-    needs: build
 
     steps:
       - name: Deploy to GitHub Pages
